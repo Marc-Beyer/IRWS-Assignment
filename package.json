@@ -1,0 +1,23 @@
+{
+    "name": "IRWS-Assignment",
+    "version": "1.0.0",
+    "description": "",
+    "main": "app.js",
+    "scripts": {
+        "dev": "tsc -w",
+        "build-ts": "npx tsc",
+        "start": "node ./dist/js/app.js",
+        "clean-start": "npm run build-ts && npm run start",
+        "test": "tsc --noEmit && node --loader tsx ./test/runTests.ts"
+    },
+    "author": "Marc Beyer",
+    "license": "ISC",
+    "type": "module",
+    "devDependencies": {
+        "@types/node": "^20.7.1",
+        "nodemon": "^3.0.1",
+        "ts-node": "^10.9.1",
+        "typescript": "^5.2.2",
+        "tsx": "^3.13.0"
+    }
+}
