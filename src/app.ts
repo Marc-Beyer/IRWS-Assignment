@@ -1,5 +1,6 @@
 import readline from "readline";
 import { porterStem } from "./porter.js";
+import { preprocessDirectory } from "./preprocess.js";
 
 const readlineInterface = readline.createInterface({
     input: process.stdin,
@@ -14,10 +15,11 @@ const dataPath = "./data-lab2";
 })();
 
 function getUserSearchQuery() {
-    readlineInterface.question("Choose [B]oolean, [V]ector space query or [P]rint the index -> ", (input) => {
+    readlineInterface.question("Choose [B]oolean, [V]ector space query or [P]reprocess the index -> ", (input) => {
         switch (input) {
             case "P":
             case "p":
+                preprocessDirectory("./files");
                 break;
             case "B":
             case "b":
