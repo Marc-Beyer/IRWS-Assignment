@@ -1,12 +1,12 @@
+import { KeyValuePair, Document, IndexedDocument, IndexingInfo } from "./interfaces.js";
+import { porterStem } from "./porter.js";
+
 import fs from "fs";
 import path from "path";
-import { porterStem } from "./porter.js";
-import { json } from "stream/consumers";
-import { KeyValuePair, Document, IndexedDocument, IndexingInfo } from "./interfaces.js";
 
 const regexNonNormal = /[^A-Z0-9' ]/gi;
 const regexMultiSpaces = /[ ]+/gi;
-const regexCorrectFormat = /\n[ ]*\n/;
+const regexDoubleLineBreak = /\n *\n/;
 
 const stopWordsPath = "./stopWords.txt";
 const indexingInfoPath = "./indexingInfo.json";
@@ -34,7 +34,6 @@ export function preprocessDirectory(directoryPath: string) {
 
     console.log("documents: ", documents.length);
     console.log("words: ", Object.keys(wordCount).length);
-    console.log("\n");
 
     //  calculate Idfs
     for (const word in wordCount) {
@@ -59,13 +58,14 @@ export function preprocessDirectory(directoryPath: string) {
 
             return {
                 id: document.id,
+                title: document.title,
                 termWeights: document.termFrequency,
                 sqrtSumOfSquaredWeights: Math.sqrt(sqrtSumOfSquaredWeights),
             };
         }),
     };
 
-    console.log("Preprocessing completed!");
+    console.log("\nPreprocessing completed!\n");
 
     // Save the indexingInfo
     fs.writeFileSync(indexingInfoPath, JSON.stringify(indexingInfo));
@@ -76,8 +76,6 @@ export function preprocessFile(filePath: string, wordCount: KeyValuePair, docume
     let file = fs.readFileSync(filePath, "utf8").replaceAll("\r\n", "\n");
 
     let files = file.split("\n********************************************\n");
-
-    console.log("files: " + files.length);
 
     let documentIds = new Set<string>();
 
@@ -101,7 +99,9 @@ export function preprocessFile(filePath: string, wordCount: KeyValuePair, docume
 
         let documentWithTitle = fileContent.substring(firstLineBreak + 1);
 
-        if (!regexCorrectFormat.test(documentWithTitle)) {
+        let doubleLineBreakMatch = regexDoubleLineBreak.exec(documentWithTitle);
+
+        if (!doubleLineBreakMatch) {
             const docNr = index + 1;
             console.log(
                 `ERROR:\nThe given file '${filePath}' has a document (${docNr}) with an incorrect Format!\nID or title might be missing.\nThis document will be ignored in the further process.\n`
@@ -109,18 +109,19 @@ export function preprocessFile(filePath: string, wordCount: KeyValuePair, docume
             continue;
         }
 
+        let documentTitle = documentWithTitle.substring(0, doubleLineBreakMatch.index).replaceAll("\n", " ");
+
         documentIds.add(documentId);
 
         // Split the content into words, remove all line breaks and a lot of unnecessary characters.
         let documentContent = documentWithTitle.toLowerCase().replaceAll("\n", " ").replaceAll(regexNonNormal, "").trim().split(" ");
-
-        console.log(documentId, documentContent.length);
 
         // Remove all stop-words and and stem them.
         let preprocessedWords = removeStopWords(documentContent).map((word) => porterStem(word.replaceAll("'", "")));
 
         documents.push({
             id: documentId,
+            title: documentTitle,
             termFrequency: indexDocument(preprocessedWords, wordCount),
         });
     }

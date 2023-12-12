@@ -7,7 +7,11 @@
         "dev": "tsc -w",
         "build-ts": "npx tsc",
         "start": "node ./dist/js/app.js",
+        "start-preprocess": "node ./dist/js/app.js -preprocess ./files",
+        "start-queries": "node ./dist/js/app.js -queries ./queries/IR1_Queries.txt",
         "clean-start": "npm run build-ts && npm run start",
+        "clean-start-preprocess": "npm run build-ts && npm run start-preprocess",
+        "clean-start-queries": "npm run build-ts && npm run start-queries",
         "test": "tsc --noEmit && node --loader tsx ./test/runTests.ts"
     },
     "author": "Marc Beyer",

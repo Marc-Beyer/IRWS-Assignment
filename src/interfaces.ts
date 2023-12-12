@@ -4,16 +4,13 @@ export interface KeyValuePair {
 
 export interface Document {
     id: string;
-    termFrequency: KeyValuePair;
-}
-
-export interface Document {
-    id: string;
+    title: string;
     termFrequency: KeyValuePair;
 }
 
 export interface IndexedDocument {
     id: string;
+    title: string;
     termWeights: KeyValuePair;
     sqrtSumOfSquaredWeights: number;
 }
@@ -21,4 +18,10 @@ export interface IndexedDocument {
 export interface IndexingInfo {
     idfs: KeyValuePair;
     indexedDocuments: IndexedDocument[];
+}
+
+export interface CosineSimilarityDocument {
+    cosineSimilarity: number;
+    id: string;
+    title: string;
 }
