@@ -3,12 +3,15 @@ import path from "path";
 import { porterStem } from "./porter.js";
 const regexNonNormal = /[^A-Z0-9' ]/gi;
 const regexMultiSpaces = /[ ]+/gi;
+const regexCorrectFormat = /\n[ ]*\n/;
 const stopWordsPath = "./stopWords.txt";
+const indexingInfoPath = "./indexingInfo.json";
 let stopWords = [];
 export function preprocessDirectory(directoryPath) {
     stopWords = getStopWords();
     let documents = [];
     let wordCount = {};
+    // Read all directory contents
     const dirContents = fs.readdirSync(directoryPath);
     for (const dirContent of dirContents) {
         let contentPath = path.join(directoryPath, dirContent);
@@ -20,26 +23,64 @@ export function preprocessDirectory(directoryPath) {
     }
     console.log("documents: ", documents.length);
     console.log("words: ", Object.keys(wordCount).length);
+    console.log("\n");
+    //  calculate Idfs
+    for (const word in wordCount) {
+        if (Object.prototype.hasOwnProperty.call(wordCount, word)) {
+            const count = wordCount[word];
+            wordCount[word] = Math.log10(1 + documents.length / count);
+        }
+    }
+    let indexingInfo = {
+        idfs: wordCount,
+        indexedDocuments: documents.map((document) => {
+            let sqrtSumOfSquaredWeights = 0;
+            // multiply all termFrequencies with the correct idf
+            for (const term in document.termFrequency) {
+                if (Object.prototype.hasOwnProperty.call(document.termFrequency, term)) {
+                    document.termFrequency[term] *= wordCount[term];
+                    sqrtSumOfSquaredWeights += Math.pow(document.termFrequency[term], 2);
+                }
+            }
+            return {
+                id: document.id,
+                termWeights: document.termFrequency,
+                sqrtSumOfSquaredWeights: Math.sqrt(sqrtSumOfSquaredWeights),
+            };
+        }),
+    };
+    console.log("Preprocessing completed!");
+    // Save the indexingInfo
+    fs.writeFileSync(indexingInfoPath, JSON.stringify(indexingInfo));
 }
 export function preprocessFile(filePath, wordCount, documents) {
+    // replace \r\n with \n to handle Windows line endings
     let file = fs.readFileSync(filePath, "utf8").replaceAll("\r\n", "\n");
     let files = file.split("\n********************************************\n");
     console.log("files: " + files.length);
+    let documentIds = new Set();
     for (let index = 0; index < files.length; index++) {
         const fileContent = files[index];
         let firstLineBreak = fileContent.indexOf("\n");
         let documentId = fileContent.substring(0, firstLineBreak);
+        if (documentIds.has(documentId)) {
+            console.error(`ERROR:\nThe given file '${filePath}' has the multiple documents with the id '${documentId}'!\nThe duplicates are ignored in the further process.\n`);
+            continue;
+        }
         // If there is an empty id skip the document.
         if (documentId.trim() === "") {
             continue;
         }
+        let documentWithTitle = fileContent.substring(firstLineBreak + 1);
+        if (!regexCorrectFormat.test(documentWithTitle)) {
+            const docNr = index + 1;
+            console.log(`ERROR:\nThe given file '${filePath}' has a document (${docNr}) with an incorrect Format!\nID or title might be missing.\nThis document will be ignored in the further process.\n`);
+            continue;
+        }
+        documentIds.add(documentId);
         // Split the content into words, remove all line breaks and a lot of unnecessary characters.
-        let documentContent = fileContent
-            .substring(firstLineBreak + 1)
-            .toLowerCase()
-            .replaceAll("\n", " ")
-            .replaceAll(regexNonNormal, "")
-            .split(" ");
+        let documentContent = documentWithTitle.toLowerCase().replaceAll("\n", " ").replaceAll(regexNonNormal, "").trim().split(" ");
+        console.log(documentId, documentContent.length);
         // Remove all stop-words and and stem them.
         let preprocessedWords = removeStopWords(documentContent).map((word) => porterStem(word.replaceAll("'", "")));
         documents.push({

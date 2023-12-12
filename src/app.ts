@@ -10,23 +10,16 @@ const readlineInterface = readline.createInterface({
 const dataPath = "./data-lab2";
 
 (function main() {
-    console.log("IRWS Assignment by Marc Beyer and Roberto :D");
+    console.log("IRWS Assignment by Marc Beyer and Roberto :D\n");
     getUserSearchQuery();
 })();
 
 function getUserSearchQuery() {
-    readlineInterface.question("Choose [B]oolean, [V]ector space query or [P]reprocess the index -> ", (input) => {
+    readlineInterface.question("What do you want to do?\nChoose [P]reprocess or [Q]uery -> ", (input) => {
         switch (input) {
             case "P":
             case "p":
                 preprocessDirectory("./files");
-                break;
-            case "B":
-            case "b":
-                readlineInterface.question("Enter the boolean query -> ", (query) => {
-                    console.log("stem: " + porterStem(query));
-                    //getUserSearchQuery();
-                });
                 break;
             case "V":
             case "v":
