@@ -6,6 +6,7 @@
     "scripts": {
         "dev": "tsc -w",
         "build-ts": "npx tsc",
+        "build": "npm run build-ts",
         "start": "node ./dist/js/app.js",
         "start-preprocess": "node ./dist/js/app.js -preprocess ./files",
         "start-queries": "node ./dist/js/app.js -queries ./queries/IR1_Queries.txt",
