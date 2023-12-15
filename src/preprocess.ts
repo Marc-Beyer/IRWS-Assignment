@@ -1,4 +1,4 @@
-import { KeyValuePair, Document, IndexedDocument, IndexingInfo } from "./interfaces.js";
+import { KeyValuePair, Document, IndexedDocument, IndexingInfo, InvertedIndex } from "./interfaces.js";
 import { porterStem } from "./porter.js";
 
 import fs from "fs";
@@ -10,6 +10,7 @@ const regexDoubleLineBreak = /\n *\n/;
 
 const stopWordsPath = "./stopWords.txt";
 const indexingInfoPath = "./indexingInfo.json";
+const invertedIndexPath = "./invertedIndex.csv";
 
 let stopWords: string[] = [];
 
@@ -18,22 +19,35 @@ export function preprocessDirectory(directoryPath: string) {
 
     let documents: Document[] = [];
     let wordCount: KeyValuePair = {};
+    let invertedIndex: InvertedIndex = {};
 
-    // Read all directory contents
-    const dirContents = fs.readdirSync(directoryPath);
+    let stats = fs.statSync(directoryPath);
 
-    for (const dirContent of dirContents) {
-        let contentPath = path.join(directoryPath, dirContent);
-        let content = fs.statSync(contentPath);
+    if (stats.isFile()) {
+        preprocessFile(directoryPath, wordCount, invertedIndex, documents);
+    } else if (stats.isDirectory()) {
+        // Read all directory contents
+        const dirContents = fs.readdirSync(directoryPath);
 
-        // Only read files ignore all directories
-        if (content.isFile()) {
-            preprocessFile(contentPath, wordCount, documents);
+        for (const dirContent of dirContents) {
+            let contentPath = path.join(directoryPath, dirContent);
+            let content = fs.statSync(contentPath);
+
+            // Only read files ignore all directories
+            if (content.isFile()) {
+                preprocessFile(contentPath, wordCount, invertedIndex, documents);
+            }
         }
     }
 
-    console.log("documents: ", documents.length);
-    console.log("words: ", Object.keys(wordCount).length);
+    // Check if a document was found
+    if (documents.length === 0) {
+        console.error("Error: No document found!");
+        return;
+    }
+
+    console.log("Documents: ", documents.length);
+    console.log("Terms: ", Object.keys(wordCount).length);
 
     //  calculate Idfs
     for (const word in wordCount) {
@@ -65,13 +79,23 @@ export function preprocessDirectory(directoryPath: string) {
         }),
     };
 
-    console.log("\nPreprocessing completed!\n");
-
     // Save the indexingInfo
-    fs.writeFileSync(indexingInfoPath, JSON.stringify(indexingInfo));
+    fs.writeFile(indexingInfoPath, JSON.stringify(indexingInfo), () => {});
+
+    let invertedIndexContent = "TERM:DOCUMENT_ID_1,DOCUMENT_ID_2,...,DOCUMENT_ID_N";
+
+    for (const term in invertedIndex) {
+        if (Object.prototype.hasOwnProperty.call(invertedIndex, term)) {
+            invertedIndexContent += `\n${term}:${invertedIndex[term]}`;
+        }
+    }
+
+    fs.writeFile(invertedIndexPath, invertedIndexContent, () => {});
+
+    console.log(`\nPreprocessing completed!\nCreated '${indexingInfoPath}' and '${invertedIndexPath}'`);
 }
 
-export function preprocessFile(filePath: string, wordCount: KeyValuePair, documents: Document[]) {
+export function preprocessFile(filePath: string, wordCount: KeyValuePair, invertedIndex: InvertedIndex, documents: Document[]) {
     // replace \r\n with \n to handle Windows line endings
     let file = fs.readFileSync(filePath, "utf8").replaceAll("\r\n", "\n");
 
@@ -122,7 +146,7 @@ export function preprocessFile(filePath: string, wordCount: KeyValuePair, docume
         documents.push({
             id: documentId,
             title: documentTitle,
-            termFrequency: indexDocument(preprocessedWords, wordCount),
+            termFrequency: indexDocument(preprocessedWords, wordCount, invertedIndex, documentId),
         });
     }
 
@@ -137,7 +161,7 @@ function getStopWords() {
     return fs.readFileSync(stopWordsPath, "utf-8").toLowerCase().replaceAll("\r", "").split("\n");
 }
 
-function indexDocument(words: string[], wordCount: KeyValuePair): KeyValuePair {
+function indexDocument(words: string[], wordCount: KeyValuePair, invertedIndex: InvertedIndex, documentId: string): KeyValuePair {
     let termFrequencies: KeyValuePair = {};
 
     let maxTermFrequency = 1;
@@ -156,8 +180,10 @@ function indexDocument(words: string[], wordCount: KeyValuePair): KeyValuePair {
             termFrequencies[word] /= maxTermFrequency;
             if (wordCount[word] !== undefined) {
                 wordCount[word]++;
+                invertedIndex[word] += "," + documentId;
             } else {
                 wordCount[word] = 1;
+                invertedIndex[word] = documentId;
             }
         }
     }

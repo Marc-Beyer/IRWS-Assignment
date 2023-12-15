@@ -7,12 +7,11 @@ const indexingInfoPath = "./indexingInfo.json";
 const queryResultsPath = "./queryResults/";
 import { porterStem } from "./porter.js";
 let stopWords = [];
-export function executeQueries(filePath) {
+let indexingInfo;
+export function readQueries(filePath) {
+    let queriesMap = {};
     stopWords = getStopWords();
-    let indexingInfo = JSON.parse(fs.readFileSync(indexingInfoPath, "utf8"));
-    preprocessQueriesFile(filePath, indexingInfo);
-}
-function preprocessQueriesFile(filePath, indexingInfo) {
+    indexingInfo = JSON.parse(fs.readFileSync(indexingInfoPath, "utf8"));
     // replace \r\n with \n to handle Windows line endings
     let file = fs.readFileSync(filePath, "utf8").replaceAll("\r\n", "\n");
     let queries = file.split("##");
@@ -23,62 +22,88 @@ function preprocessQueriesFile(filePath, indexingInfo) {
         let firstLineBreak = query.indexOf("\n");
         let queryId = query.substring(0, firstLineBreak);
         let queryContent = query.substring(firstLineBreak + 1);
-        // Split the content into words, remove all line breaks and a lot of unnecessary characters.
-        let queryTerms = queryContent.toLowerCase().replaceAll("\n", " ").replaceAll(regexNonNormal, "").trim().split(" ");
-        // Remove all stop-words and and stem them.
-        let preprocessedQueryTerms = removeStopWords(queryTerms).map((word) => porterStem(word.replaceAll("'", "")));
-        let termFrequencies = {};
-        let maxTermFrequency = 1;
-        for (let index = 0; index < preprocessedQueryTerms.length; index++) {
-            const term = preprocessedQueryTerms[index];
-            if (termFrequencies[term] !== undefined) {
-                termFrequencies[term]++;
-                if (termFrequencies[term] > maxTermFrequency)
-                    maxTermFrequency = termFrequencies[term];
+        let queryIdAsNumber = parseInt(queryId);
+        if (Number.isNaN(queryIdAsNumber)) {
+            console.log(`ERROR:\nQuery has no valid ID: '${queryId}'`);
+        }
+        else {
+            if (queriesMap[queryIdAsNumber] !== undefined) {
+                console.log(`ERROR:\nThe given file '${filePath}' has the multiple queries with the id '${queryId}'!\nThe duplicates are ignored in the further process.\n`);
             }
             else {
-                termFrequencies[term] = 1;
+                queriesMap[queryIdAsNumber] = queryContent;
             }
         }
-        let sqrtSumOfSquaredWeights = 0;
-        // TODO what if the term in the query dose not exist in any document. Count will be 0. Error division by zero
+    }
+    return queriesMap;
+}
+export function executeQueries(queryId, queryContent) {
+    // Split the content into words, remove all line breaks and a lot of unnecessary characters.
+    let queryTerms = queryContent.toLowerCase().replaceAll("\n", " ").replaceAll(regexNonNormal, "").trim().split(" ");
+    // Remove all stop-words and and stem them.
+    let preprocessedQueryTerms = removeStopWords(queryTerms).map((word) => porterStem(word.replaceAll("'", "")));
+    // Calculate term frequencies for the query and the max term frequency
+    let termFrequencies = {};
+    let maxTermFrequency = 1;
+    for (let index = 0; index < preprocessedQueryTerms.length; index++) {
+        const term = preprocessedQueryTerms[index];
+        if (termFrequencies[term] !== undefined) {
+            termFrequencies[term]++;
+            if (termFrequencies[term] > maxTermFrequency)
+                maxTermFrequency = termFrequencies[term];
+        }
+        else {
+            termFrequencies[term] = 1;
+        }
+    }
+    let sqrtSumOfSquaredWeights = 0;
+    // Divide the term frequencies by the max term frequency and multiply them with the idf to get the term weights.
+    // Square them and sum them up.
+    for (const term in termFrequencies) {
+        if (Object.prototype.hasOwnProperty.call(termFrequencies, term)) {
+            termFrequencies[term] = (0.5 + termFrequencies[term] / maxTermFrequency) * (indexingInfo.idfs[term] ?? 0);
+            sqrtSumOfSquaredWeights += Math.pow(termFrequencies[term], 2);
+        }
+    }
+    // Take the square root of the sum of squared weights.
+    sqrtSumOfSquaredWeights = Math.sqrt(sqrtSumOfSquaredWeights);
+    // Calculate the cosine similarity for all documents
+    let cosineSimilarityDocuments = [];
+    for (let index = 0; index < indexingInfo.indexedDocuments.length; index++) {
+        const indexedDocument = indexingInfo.indexedDocuments[index];
+        let queryDocumentWeightSum = 0;
+        // Multiply all terms weights of the query with weights of the matching terms of the document
         for (const term in termFrequencies) {
             if (Object.prototype.hasOwnProperty.call(termFrequencies, term)) {
-                termFrequencies[term] = (0.5 + termFrequencies[term] / maxTermFrequency) * (indexingInfo.idfs[term] ?? 0);
-                sqrtSumOfSquaredWeights += Math.pow(termFrequencies[term], 2);
+                queryDocumentWeightSum += (indexedDocument.termWeights[term] ?? 0) * termFrequencies[term];
             }
         }
-        sqrtSumOfSquaredWeights = Math.sqrt(sqrtSumOfSquaredWeights);
-        let cosineSimilarityDocuments = [];
-        for (let index = 0; index < indexingInfo.indexedDocuments.length; index++) {
-            const indexedDocument = indexingInfo.indexedDocuments[index];
-            let queryDocumentWeightSum = 0;
-            for (const term in termFrequencies) {
-                if (Object.prototype.hasOwnProperty.call(termFrequencies, term)) {
-                    queryDocumentWeightSum += (indexedDocument.termWeights[term] ?? 0) * termFrequencies[term];
-                }
-            }
-            queryDocumentWeightSum = Math.sqrt(queryDocumentWeightSum);
-            let cosineSimilarity = queryDocumentWeightSum / (indexedDocument.sqrtSumOfSquaredWeights * sqrtSumOfSquaredWeights);
-            cosineSimilarityDocuments.push({
-                id: indexedDocument.id,
-                title: indexedDocument.title,
-                cosineSimilarity,
-            });
-        }
-        // Sort the List to show the document with the highest cosineSimilarity first
-        // Format the document as follows: Cosine <Similarity>;"<Document ID>";"<Document Title>"
-        let fileContent = cosineSimilarityDocuments
-            .sort((a, b) => {
-            return a.cosineSimilarity < b.cosineSimilarity ? 1 : a.cosineSimilarity > b.cosineSimilarity ? -1 : 0;
-        })
-            .map((doc) => {
-            return `${doc.cosineSimilarity};"${doc.id}";"${doc.title}"`;
-        })
-            .join("\n");
-        // Write the file asynchronously
-        fs.writeFile(`${queryResultsPath}query_${queryId}_result.csv`, fileContent, () => { });
+        // Calculate the cosine similarity for this document
+        queryDocumentWeightSum = Math.sqrt(queryDocumentWeightSum);
+        let cosineSimilarity = queryDocumentWeightSum / (indexedDocument.sqrtSumOfSquaredWeights * sqrtSumOfSquaredWeights);
+        // Add the calculated cosineSimilarity tot the list of cosineSimilarities
+        cosineSimilarityDocuments.push({
+            id: indexedDocument.id,
+            title: indexedDocument.title,
+            cosineSimilarity,
+        });
     }
+    // Sort the List to show the document with the highest cosineSimilarity first
+    // then get the first 20 elements and join them with a lineending.
+    // Format the document as follows: Cosine <Similarity>;"<Document ID>";"<Document Title>"
+    let fileContent = cosineSimilarityDocuments
+        .sort((a, b) => {
+        return a.cosineSimilarity < b.cosineSimilarity ? 1 : a.cosineSimilarity > b.cosineSimilarity ? -1 : 0;
+    })
+        .slice(0, 20)
+        .map((doc) => {
+        return `${doc.cosineSimilarity};"${doc.id}";"${doc.title}"`;
+    })
+        .join("\n");
+    // Write the file asynchronously
+    let fileName = `${queryResultsPath}query_${queryId}_result.csv`;
+    fs.writeFile(fileName, fileContent, () => { });
+    console.log(`Created file '${fileName}'.`);
     return;
 }
 function trimStart(str) {

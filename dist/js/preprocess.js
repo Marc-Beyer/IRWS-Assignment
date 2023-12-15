@@ -6,23 +6,36 @@ const regexMultiSpaces = /[ ]+/gi;
 const regexDoubleLineBreak = /\n *\n/;
 const stopWordsPath = "./stopWords.txt";
 const indexingInfoPath = "./indexingInfo.json";
+const invertedIndexPath = "./invertedIndex.csv";
 let stopWords = [];
 export function preprocessDirectory(directoryPath) {
     stopWords = getStopWords();
     let documents = [];
     let wordCount = {};
-    // Read all directory contents
-    const dirContents = fs.readdirSync(directoryPath);
-    for (const dirContent of dirContents) {
-        let contentPath = path.join(directoryPath, dirContent);
-        let content = fs.statSync(contentPath);
-        // Only read files ignore all directories
-        if (content.isFile()) {
-            preprocessFile(contentPath, wordCount, documents);
+    let invertedIndex = {};
+    let stats = fs.statSync(directoryPath);
+    if (stats.isFile()) {
+        preprocessFile(directoryPath, wordCount, invertedIndex, documents);
+    }
+    else if (stats.isDirectory()) {
+        // Read all directory contents
+        const dirContents = fs.readdirSync(directoryPath);
+        for (const dirContent of dirContents) {
+            let contentPath = path.join(directoryPath, dirContent);
+            let content = fs.statSync(contentPath);
+            // Only read files ignore all directories
+            if (content.isFile()) {
+                preprocessFile(contentPath, wordCount, invertedIndex, documents);
+            }
         }
     }
-    console.log("documents: ", documents.length);
-    console.log("words: ", Object.keys(wordCount).length);
+    // Check if a document was found
+    if (documents.length === 0) {
+        console.error("Error: No document found!");
+        return;
+    }
+    console.log("Documents: ", documents.length);
+    console.log("Terms: ", Object.keys(wordCount).length);
     //  calculate Idfs
     for (const word in wordCount) {
         if (Object.prototype.hasOwnProperty.call(wordCount, word)) {
@@ -49,11 +62,18 @@ export function preprocessDirectory(directoryPath) {
             };
         }),
     };
-    console.log("\nPreprocessing completed!\n");
     // Save the indexingInfo
-    fs.writeFileSync(indexingInfoPath, JSON.stringify(indexingInfo));
+    fs.writeFile(indexingInfoPath, JSON.stringify(indexingInfo), () => { });
+    let invertedIndexContent = "TERM:DOCUMENT_ID_1,DOCUMENT_ID_2,...,DOCUMENT_ID_N";
+    for (const term in invertedIndex) {
+        if (Object.prototype.hasOwnProperty.call(invertedIndex, term)) {
+            invertedIndexContent += `\n${term}:${invertedIndex[term]}`;
+        }
+    }
+    fs.writeFile(invertedIndexPath, invertedIndexContent, () => { });
+    console.log(`\nPreprocessing completed!\nCreated '${indexingInfoPath}' and '${invertedIndexPath}'`);
 }
-export function preprocessFile(filePath, wordCount, documents) {
+export function preprocessFile(filePath, wordCount, invertedIndex, documents) {
     // replace \r\n with \n to handle Windows line endings
     let file = fs.readFileSync(filePath, "utf8").replaceAll("\r\n", "\n");
     let files = file.split("\n********************************************\n");
@@ -86,7 +106,7 @@ export function preprocessFile(filePath, wordCount, documents) {
         documents.push({
             id: documentId,
             title: documentTitle,
-            termFrequency: indexDocument(preprocessedWords, wordCount),
+            termFrequency: indexDocument(preprocessedWords, wordCount, invertedIndex, documentId),
         });
     }
     return;
@@ -97,7 +117,7 @@ function removeStopWords(words) {
 function getStopWords() {
     return fs.readFileSync(stopWordsPath, "utf-8").toLowerCase().replaceAll("\r", "").split("\n");
 }
-function indexDocument(words, wordCount) {
+function indexDocument(words, wordCount, invertedIndex, documentId) {
     let termFrequencies = {};
     let maxTermFrequency = 1;
     for (let index = 0; index < words.length; index++) {
@@ -116,9 +136,11 @@ function indexDocument(words, wordCount) {
             termFrequencies[word] /= maxTermFrequency;
             if (wordCount[word] !== undefined) {
                 wordCount[word]++;
+                invertedIndex[word] += "," + documentId;
             }
             else {
                 wordCount[word] = 1;
+                invertedIndex[word] = documentId;
             }
         }
     }

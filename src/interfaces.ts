@@ -2,6 +2,10 @@ export interface KeyValuePair {
     [key: string]: number;
 }
 
+export interface Queries {
+    [key: number]: string;
+}
+
 export interface Document {
     id: string;
     title: string;
@@ -24,4 +28,8 @@ export interface CosineSimilarityDocument {
     cosineSimilarity: number;
     id: string;
     title: string;
+}
+
+export interface InvertedIndex {
+    [key: string]: string;
 }

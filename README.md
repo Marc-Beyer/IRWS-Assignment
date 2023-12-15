@@ -11,9 +11,9 @@ This is a NodeJS project written in TypeScript. To run it you will need to insta
 <br>For information on using Node.js, see the [Node.js website][].
 <br>We have build and tested the project with Node **v20.10.0 LTS**.
 
-First download and install **NodeJS v20.10.0 LTS** with **NPM** from the [Node.js website][].
+First download and install **NodeJS v20.10.0 LTS** from the [Node.js website][].
 
-After installing NodeJS and NPM you can test if you have installed it correctly with:
+After installing NodeJS including NPM you can test if you have installed it correctly with:
 
 ```
 > node -v
@@ -96,3 +96,4 @@ This will take a path to a file, which must include all queries that should be e
 ```
 
 [Node.js website]: https://nodejs.org/
+
