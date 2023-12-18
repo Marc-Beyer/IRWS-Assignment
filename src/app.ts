@@ -53,14 +53,44 @@ function askForUserInput(readlineInterface: readline.Interface) {
                     readlineInterface.close();
                     break;
                 default:
-                    let userInputNum = parseInt(userInput);
-                    if (Number.isNaN(userInputNum)) {
-                        console.error(`No valid input: ${userInput}`);
-                    } else if (queries[userInputNum] === undefined) {
-                        console.error(`No valid input: ${userInput}`);
-                    } else {
-                        executeQueries(userInputNum.toString(), queries[userInputNum]);
+                    for (let element of userInput.split(",")) {
+                        if (element.includes("-")) {
+                            const numbers = element.split("-");
+
+                            if (numbers.length !== 2) {
+                                console.error(`No valid input: ${element}`);
+                            } else {
+                                let startNum = parseInt(numbers[0]);
+                                let endNum = parseInt(numbers[1]);
+                                if (Number.isNaN(startNum) || Number.isNaN(endNum)) {
+                                    console.error(`No valid input: ${element}`);
+                                } else {
+                                    if (startNum > endNum) {
+                                        let tmp = startNum;
+                                        startNum = endNum;
+                                        endNum = tmp;
+                                    }
+                                    for (let index = startNum; index <= endNum; index++) {
+                                        if (queries[index] === undefined) {
+                                            console.error(`No valid query ID: ${index}`);
+                                        } else {
+                                            executeQueries(index.toString(), queries[index]);
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            let userInputNum = parseInt(element);
+                            if (Number.isNaN(element)) {
+                                console.error(`No valid input: ${element}`);
+                            } else if (queries[userInputNum] === undefined) {
+                                console.error(`No valid query ID: ${element}`);
+                            } else {
+                                executeQueries(userInputNum.toString(), queries[userInputNum]);
+                            }
+                        }
                     }
+
                     askForUserInput(readlineInterface);
                     break;
             }
