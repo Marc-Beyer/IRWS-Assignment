@@ -65,6 +65,19 @@ export function executeQueries(queryId, queryContent) {
             sqrtSumOfSquaredWeights += Math.pow(termFrequencies[term], 2);
         }
     }
+    /*
+    for (const term in indexingInfo.idfs) {
+        if (Object.prototype.hasOwnProperty.call(indexingInfo.idfs, term)) {
+            const element = indexingInfo.idfs[term];
+            if (termFrequencies[term] === undefined) {
+                termFrequencies[term] = 0.5 * indexingInfo.idfs[term];
+            } else {
+                termFrequencies[term] = (0.5 + termFrequencies[term] / maxTermFrequency) * (indexingInfo.idfs[term] ?? 0);
+            }
+            sqrtSumOfSquaredWeights += Math.pow(termFrequencies[term], 2);
+        }
+    }
+    */
     // Take the square root of the sum of squared weights.
     sqrtSumOfSquaredWeights = Math.sqrt(sqrtSumOfSquaredWeights);
     // Calculate the cosine similarity for all documents

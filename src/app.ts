@@ -41,11 +41,14 @@ function askForUserInput(readlineInterface: readline.Interface) {
             switch (userInput) {
                 case "A":
                 case "a":
+                    const start = Date.now();
                     for (const id in queries) {
                         if (Object.prototype.hasOwnProperty.call(queries, id)) {
                             executeQueries(id, queries[id]);
                         }
                     }
+                    const end = Date.now();
+                    console.log(`Execution time: ${end - start} ms`);
                     askForUserInput(readlineInterface);
                     break;
                 case "Q":
